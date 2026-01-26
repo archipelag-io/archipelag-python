@@ -1,0 +1,67 @@
+[tools]
+python = "3.13"
+uv = "latest"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.setup]
+description = "Create venv and install dependencies"
+run = """
+#!/bin/bash
+uv venv
+uv pip install -e ".[dev]"
+echo "Done! Activate with: source .venv/bin/activate"
+"""
+
+[tasks.install]
+description = "Install package in development mode"
+run = "uv pip install -e ."
+
+[tasks."install:dev"]
+description = "Install with dev dependencies"
+run = "uv pip install -e '.[dev]'"
+
+[tasks.test]
+description = "Run tests"
+run = "uv run pytest"
+
+[tasks."test:cov"]
+description = "Run tests with coverage"
+run = "uv run pytest --cov=archipelag --cov-report=term-missing"
+
+[tasks.lint]
+description = "Run ruff linter"
+run = "uv run ruff check ."
+
+[tasks."lint:fix"]
+description = "Fix linting issues"
+run = "uv run ruff check --fix ."
+
+[tasks.fmt]
+description = "Format code with ruff"
+run = "uv run ruff format ."
+
+[tasks."fmt:check"]
+description = "Check code formatting"
+run = "uv run ruff format --check ."
+
+[tasks.typecheck]
+description = "Run mypy type checking"
+run = "uv run mypy archipelag"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "rm -rf dist build *.egg-info .pytest_cache .mypy_cache .ruff_cache"
+
+[tasks.ci]
+description = "Run all CI checks"
+depends = ["fmt:check", "lint", "typecheck", "test"]
+
+[tasks.build]
+description = "Build distribution packages"
+run = "uv build"
+
+[tasks.publish]
+description = "Publish to PyPI"
+run = "uv publish"
