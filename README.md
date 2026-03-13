@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://pypi.org/project/archipelag/"><img src="https://img.shields.io/pypi/v/archipelag?color=blue" alt="PyPI"></a>
+  <a href="https://pypi.org/project/archipelag/"><img src="https://img.shields.io/pypi/pyversions/archipelag" alt="Python versions"></a>
+  <a href="https://github.com/archipelag-io/archipelag-python/blob/main/LICENSE"><img src="https://img.shields.io/github/license/archipelag-io/archipelag-python" alt="License"></a>
+</p>
+
 # Archipelag Python SDK
 
 Official Python SDK for the [Archipelag.io](https://archipelag.io) distributed compute platform.
@@ -204,6 +210,10 @@ except JobFailedError as e:
 except ArchipelagError as e:
     print(f"API error: {e}")
 ```
+
+## Contributing
+
+Contributions are welcome! Please see our [Contributing Guidelines](https://github.com/archipelag-io/.github/blob/main/CONTRIBUTING.md) and [Code of Conduct](https://github.com/archipelag-io/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
