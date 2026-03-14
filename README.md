@@ -66,7 +66,7 @@ asyncio.run(main())
 - **Streaming support** via Server-Sent Events
 - **Type hints** with Pydantic models
 - **Automatic retries** and error handling
-- **Workload helpers** for chat, image generation, and more
+- **Cargo helpers** for chat, image generation, and more
 
 ## API Reference
 
@@ -166,10 +166,10 @@ client.cancel_job(job.id)
 jobs = client.list_jobs(limit=10)
 ```
 
-### Workloads
+### Cargos
 
 ```python
-# List available workloads
+# List available Cargos
 workloads = client.list_workloads()
 for w in workloads:
     print(f"{w.slug}: {w.name} (${w.price_per_job} credits)")
