@@ -4,7 +4,7 @@
   <a href="https://github.com/archipelag-io/archipelag-python/blob/main/LICENSE"><img src="https://img.shields.io/github/license/archipelag-io/archipelag-python" alt="License"></a>
 </p>
 
-# Archipelag Python SDK
+# Archipelag.io Python SDK
 
 Official Python SDK for the [Archipelag.io](https://archipelag.io) distributed compute platform.
 
