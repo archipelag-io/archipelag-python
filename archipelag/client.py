@@ -5,6 +5,7 @@ Main client classes for interacting with the Archipelag.io API.
 """
 
 import time
+from datetime import datetime
 from typing import Any, AsyncIterator, Iterator, Optional, Union
 
 import httpx
@@ -22,6 +23,10 @@ from archipelag.exceptions import (
 from archipelag.models import (
     Account,
     ApiKey,
+    BatchChild,
+    BatchConfig,
+    BatchJob,
+    BatchProgress,
     ChatRequest,
     ChatResult,
     ImageRequest,
@@ -469,6 +474,113 @@ class Client:
             results.append(completed)
         return results
 
+    # =========================================================================
+    # Server-side batch jobs
+    # =========================================================================
+
+    def submit_batch(
+        self,
+        workload: str,
+        inputs: list[dict[str, Any]],
+        *,
+        merge_strategy: str = "concat",
+        fail_mode: str = "best_effort",
+        max_parallelism: Optional[int] = None,
+        region: Optional[str] = None,
+        bid_price: Optional[float] = None,
+    ) -> BatchJob:
+        """
+        Submit a batch job to be distributed across multiple Islands.
+
+        Args:
+            workload: Cargo slug to run for each input
+            inputs: List of input dicts (1-100 items)
+            merge_strategy: How to merge results - "concat" or "flatten"
+            fail_mode: "best_effort" (partial results OK) or "fail_fast"
+            max_parallelism: Max concurrent children (default: unlimited)
+            region: Preferred region for placement
+            bid_price: Per-child bid price
+
+        Returns:
+            BatchJob with parent ID and child job list
+        """
+        body: dict[str, Any] = {
+            "workload": workload,
+            "inputs": inputs,
+            "merge_strategy": merge_strategy,
+            "fail_mode": fail_mode,
+        }
+        if max_parallelism is not None:
+            body["max_parallelism"] = max_parallelism
+        if region is not None:
+            body["region"] = region
+        if bid_price is not None:
+            body["bid_price"] = str(bid_price)
+
+        response = self._client.post("/api/v1/jobs/batch", json=body)
+        data = self._handle_response(response)
+        return BatchJob(**data)
+
+    def get_batch_status(self, batch_id: str) -> BatchProgress:
+        """Get detailed progress of a batch job."""
+        response = self._client.get(f"/api/v1/jobs/{batch_id}/batch-status")
+        data = self._handle_response(response)
+        return BatchProgress(**data)
+
+    def wait_for_batch(
+        self,
+        batch_id: str,
+        poll_interval: float = 2.0,
+        timeout: Optional[float] = None,
+        on_progress: Optional[callable] = None,
+    ) -> BatchJob:
+        """
+        Wait for a batch job to complete, with optional progress callback.
+
+        Args:
+            batch_id: Parent batch job ID
+            poll_interval: Seconds between status checks (default: 2)
+            timeout: Maximum seconds to wait
+            on_progress: Called with (completed, failed, total) on each poll
+
+        Returns:
+            Completed BatchJob (poll get_job for output)
+        """
+        start = time.time()
+        while True:
+            progress = self.get_batch_status(batch_id)
+
+            if on_progress:
+                completed = progress.child_states.get("succeeded", 0)
+                failed = progress.child_states.get("failed", 0)
+                on_progress(completed, failed, progress.chunk_count)
+
+            if progress.parent_state in ("succeeded", "failed", "cancelled"):
+                job = self.get_job(batch_id)
+                if job.status == JobStatus.FAILED:
+                    raise JobFailedError(job.error or "Batch failed", job_id=batch_id)
+                return BatchJob(
+                    id=batch_id,
+                    state=progress.parent_state,
+                    workload="",
+                    batch=BatchConfig(
+                        chunk_count=progress.chunk_count,
+                        merge_strategy=progress.merge_strategy,
+                        fail_mode=progress.fail_mode,
+                    ),
+                    children=progress.children,
+                    created_at=datetime.min,
+                )
+
+            if timeout and (time.time() - start) > timeout:
+                from archipelag.exceptions import TimeoutError
+
+                raise TimeoutError(
+                    f"Batch {batch_id} did not complete within {timeout}s"
+                )
+
+            time.sleep(poll_interval)
+
 
 class AsyncClient:
     """
@@ -716,3 +828,116 @@ class AsyncClient:
             job_id=job.id,
             usage=job.usage or Usage(),
         )
+
+    # =========================================================================
+    # Server-side batch jobs
+    # =========================================================================
+
+    async def submit_batch(
+        self,
+        workload: str,
+        inputs: list[dict[str, Any]],
+        *,
+        merge_strategy: str = "concat",
+        fail_mode: str = "best_effort",
+        max_parallelism: Optional[int] = None,
+        region: Optional[str] = None,
+        bid_price: Optional[float] = None,
+    ) -> BatchJob:
+        """
+        Submit a batch job to be distributed across multiple Islands.
+
+        Args:
+            workload: Cargo slug to run for each input
+            inputs: List of input dicts (1-100 items)
+            merge_strategy: How to merge results - "concat" or "flatten"
+            fail_mode: "best_effort" (partial results OK) or "fail_fast"
+            max_parallelism: Max concurrent children (default: unlimited)
+            region: Preferred region for placement
+            bid_price: Per-child bid price
+
+        Returns:
+            BatchJob with parent ID and child job list
+        """
+        body: dict[str, Any] = {
+            "workload": workload,
+            "inputs": inputs,
+            "merge_strategy": merge_strategy,
+            "fail_mode": fail_mode,
+        }
+        if max_parallelism is not None:
+            body["max_parallelism"] = max_parallelism
+        if region is not None:
+            body["region"] = region
+        if bid_price is not None:
+            body["bid_price"] = str(bid_price)
+
+        response = await self._client.post("/api/v1/jobs/batch", json=body)
+        data = await self._handle_response(response)
+        return BatchJob(**data)
+
+    async def get_batch_status(self, batch_id: str) -> BatchProgress:
+        """Get detailed progress of a batch job."""
+        response = await self._client.get(
+            f"/api/v1/jobs/{batch_id}/batch-status"
+        )
+        data = await self._handle_response(response)
+        return BatchProgress(**data)
+
+    async def wait_for_batch(
+        self,
+        batch_id: str,
+        poll_interval: float = 2.0,
+        timeout: Optional[float] = None,
+        on_progress: Optional[callable] = None,
+    ) -> BatchJob:
+        """
+        Wait for a batch job to complete, with optional progress callback.
+
+        Args:
+            batch_id: Parent batch job ID
+            poll_interval: Seconds between status checks (default: 2)
+            timeout: Maximum seconds to wait
+            on_progress: Called with (completed, failed, total) on each poll
+
+        Returns:
+            Completed BatchJob (poll get_job for output)
+        """
+        import asyncio
+
+        start = time.time()
+        while True:
+            progress = await self.get_batch_status(batch_id)
+
+            if on_progress:
+                completed = progress.child_states.get("succeeded", 0)
+                failed = progress.child_states.get("failed", 0)
+                on_progress(completed, failed, progress.chunk_count)
+
+            if progress.parent_state in ("succeeded", "failed", "cancelled"):
+                job = await self.get_job(batch_id)
+                if job.status == JobStatus.FAILED:
+                    raise JobFailedError(
+                        job.error or "Batch failed", job_id=batch_id
+                    )
+                return BatchJob(
+                    id=batch_id,
+                    state=progress.parent_state,
+                    workload="",
+                    batch=BatchConfig(
+                        chunk_count=progress.chunk_count,
+                        merge_strategy=progress.merge_strategy,
+                        fail_mode=progress.fail_mode,
+                    ),
+                    children=progress.children,
+                    created_at=datetime.min,
+                )
+
+            if timeout and (time.time() - start) > timeout:
+                from archipelag.exceptions import TimeoutError
+
+                raise TimeoutError(
+                    f"Batch {batch_id} did not complete within {timeout}s"
+                )
+
+            await asyncio.sleep(poll_interval)

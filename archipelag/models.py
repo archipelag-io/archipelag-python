@@ -192,3 +192,61 @@ class JobCreateRequest(BaseModel):
 
     workload: str
     input: dict[str, Any]
+
+
+# =========================================================================
+# Batch models
+# =========================================================================
+
+
+class BatchChild(BaseModel):
+    """A child job in a batch."""
+
+    id: str
+    batch_index: int
+    state: str
+    error: Optional[str] = None
+    host_id: Optional[str] = None
+
+
+class BatchConfig(BaseModel):
+    """Batch configuration and progress."""
+
+    chunk_count: int
+    merge_strategy: str = "concat"
+    fail_mode: str = "best_effort"
+    completed: int = 0
+    failed: int = 0
+
+
+class BatchJob(BaseModel):
+    """A batch job (parent) with its children."""
+
+    id: str
+    state: str
+    workload: str
+    batch: BatchConfig
+    children: list[BatchChild] = []
+    created_at: datetime
+
+    @property
+    def is_complete(self) -> bool:
+        return self.state in ("succeeded", "failed", "cancelled")
+
+    @property
+    def progress(self) -> float:
+        if self.batch.chunk_count == 0:
+            return 0.0
+        return (self.batch.completed + self.batch.failed) / self.batch.chunk_count
+
+
+class BatchProgress(BaseModel):
+    """Detailed batch progress."""
+
+    parent_id: str
+    parent_state: str
+    chunk_count: int
+    merge_strategy: str
+    fail_mode: str
+    child_states: dict[str, int] = {}
+    children: list[BatchChild] = []

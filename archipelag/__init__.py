@@ -20,6 +20,10 @@ Example usage:
 
 from archipelag.client import Client, AsyncClient
 from archipelag.models import (
+    BatchChild,
+    BatchConfig,
+    BatchJob,
+    BatchProgress,
     Job,
     JobStatus,
     JobOutput,
@@ -46,6 +50,10 @@ __all__ = [
     "Client",
     "AsyncClient",
     # Models
+    "BatchChild",
+    "BatchConfig",
+    "BatchJob",
+    "BatchProgress",
     "Job",
     "JobStatus",
     "JobOutput",
